@@ -1,3 +1,7 @@
 *.pt
 __pycache__/
 /.project
+*.data
+data/*
+.idea/*
+/.idea

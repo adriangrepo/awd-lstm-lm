@@ -12,9 +12,10 @@ class RNNModel(nn.Module):
     def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, dropouth=0.5, dropouti=0.5, dropoute=0.1, wdrop=0, tie_weights=False):
         super(RNNModel, self).__init__()
         self.lockdrop = LockedDropout()
-        self.idrop = nn.Dropout(dropouti)
-        self.hdrop = nn.Dropout(dropouth)
-        self.drop = nn.Dropout(dropout)
+        #why are these defined?
+        #self.idrop = nn.Dropout(dropouti)
+        #self.hdrop = nn.Dropout(dropouth)
+        #self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
         assert rnn_type in ['LSTM', 'QRNN', 'GRU'], 'RNN type is not supported'
         if rnn_type == 'LSTM':

@@ -23,46 +23,47 @@ class dotdict(dict):
 
 randomhash = ''.join(str(time.time()).split('.'))
 
-'''
-   alpha=2, batch_size=20, beta=1, bptt=70, clip=0.25, cuda=True, data='data/penn', dropout=0.4, dropoute=0.1, dropouth=0.25, dropouti=0.4, emsize=400, epochs=5, log_interval=200, lr=30, model='LSTM', nhid=1150, nlayers=3, nonmono=5, optimizer='sgd', resume='', save='PTB.pt', seed=141, tied=True, wdecay=1.2e-06, wdrop=0.5, when=[-1]
-'''
-#set defaults
-args = {
-    'description':'PyTorch PennTreeBank RNN/LSTM Language Model',
-     'data': 'data/penn/',
-     'model': 'LSTM',
-     'emsize':400,
-     'nhid':1150,
-     'nlayers':3,
-     'lr':30,
-     'clip':0.25,
-     'epochs':8000,
-     'batch_size':80,
-     'bptt':70,
-     'dropout':0.4,
-     'dropouth':0.3,
-     'dropouti':0.65,
-     'dropoute':0.1,
-     'wdrop':0.5,
-     'seed':1111,
-     'nonmono':5,
-     'cuda': True,
-     'log-interval':200,
-     'randomhash': randomhash,
-     'save':randomhash+'.pt',
-     'alpha':2,
-     'beta':1,
-     'wdecay':1.2e-6,
-     'resume':'',
-     'optimizer': 'sgd',
-     'when':[-1],
-    'log_interval':200
-}
-
 eval_batch_size = 10
 test_batch_size = 1
 
-def ptb_words():
+def set_args_defaults():
+    '''
+       alpha=2, batch_size=20, beta=1, bptt=70, clip=0.25, cuda=True, data='data/penn', dropout=0.4, dropoute=0.1, dropouth=0.25, dropouti=0.4, emsize=400, epochs=5, log_interval=200, lr=30, model='LSTM', nhid=1150, nlayers=3, nonmono=5, optimizer='sgd', resume='', save='PTB.pt', seed=141, tied=True, wdecay=1.2e-06, wdrop=0.5, when=[-1]
+    '''
+    args = {
+        'description':'PyTorch PennTreeBank RNN/LSTM Language Model',
+         'data': 'data/penn/',
+         'model': 'LSTM',
+         'emsize':400,
+         'nhid':1150,
+         'nlayers':3,
+         'lr':30,
+         'clip':0.25,
+         'epochs':8000,
+         'batch_size':80,
+         'bptt':70,
+         'dropout':0.4,
+         'dropouth':0.3,
+         'dropouti':0.65,
+         'dropoute':0.1,
+         'wdrop':0.5,
+         'seed':1111,
+         'nonmono':5,
+         'cuda': True,
+         'log-interval':200,
+         'randomhash': randomhash,
+         'save':randomhash+'.pt',
+         'alpha':2,
+         'beta':1,
+         'wdecay':1.2e-6,
+         'resume':'',
+         'optimizer': 'sgd',
+         'when':[-1],
+        'log_interval':200
+    }
+    return args
+
+def ptb_words_lstm(args):
     #override relevant keys
     args['batch_size']=20
     args['data']= 'data/penn'
@@ -73,9 +74,55 @@ def ptb_words():
     args['save'] = 'PTB.pt'
     return args
 
-args = dotdict(args)
-args.tied = True
-print(args.keys())
+def ptb_words_finetune(args):
+    args['batch_size']=20
+    args['data']= 'data/penn'
+    args['dropouti']= 0.4
+    args['dropouth']= 0.25
+    args['seed']= 141
+    args['epochs']= 5
+    args['save'] = 'PTB.pt'
+    return args
+
+def ptb_words_pointer(args):
+    args['data']= 'data/penn'
+    args['window']= 500
+    args['theta']= 1.0
+    args['lambdasm']= 0.1
+    args['save'] = 'PTB.pt'
+    args['bptt'] = 5000
+    return args
+
+def wikitext2_words_main(args):
+    args['data']= 'data/wikitext-2'
+    args['dropouth']= 0.2
+    args['seed']= 1882
+    args['epochs']= 750
+    args['save'] = 'WT2.pt'
+    return args
+
+def wikitext2_words_finetune(args):
+    args['data']= 'data/wikitext-2'
+    args['dropouth']= 0.2
+    args['seed']= 1882
+    args['epochs']= 750
+    args['save'] = 'WT2.pt'
+    return args
+
+def wikitext2_words_pointer(args):
+    args['data']= 'data/wikitext-2'
+    args['window']= 3785
+    args['theta']= 0.662
+    args['lambdasm']= 0.1279
+    args['save'] = 'WT2.pt'
+    args['bptt'] = 2000
+    return args
+
+def args_to_dot(args):
+    args = dotdict(args)
+    args.tied = True
+    print(args.keys())
+    return args
 
 def model_save(fn, modl, criterion, optimizer):
     with open(fn, 'wb') as f:
@@ -156,7 +203,7 @@ def run_model_builder(corpus, args):
     return criterion, modl, optimizer, params
 
 
-def evaluate(modl, criterion, corpus, data_source, batch_size=10):
+def evaluate(args, modl, criterion, corpus, data_source, batch_size=10):
     # Turn on evaluation mode which disables dropout.
     modl.eval()
     if args.model == 'QRNN':
@@ -246,6 +293,7 @@ def run_training(modl, corpus, train_data, args, params, val_data, eval_batch_si
         for epoch in range(1, args.epochs+1):
             epoch_start_time = time.time()
             optimizer = train(epoch, modl, corpus, train_data, args, params, optimizer, criterion)
+            #at end of each epoch (here 3 batches making up 663)
             if 't0' in optimizer.param_groups[0]:
                 tmp = {}
                 for prm in modl.parameters():
@@ -268,7 +316,7 @@ def run_training(modl, corpus, train_data, args, params, val_data, eval_batch_si
                     prm.data = tmp[prm].clone()
 
             else:
-                val_loss = evaluate(modl, criterion, corpus, val_data, eval_batch_size)
+                val_loss = evaluate(args, modl, criterion, corpus, val_data, eval_batch_size)
                 print('-' * 89)
                 print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                     'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
@@ -312,7 +360,9 @@ def run_on_test(args, test_data, test_batch_size, corpus):
 
 def workflow():
     print('workflow')
-    args = ptb_words()
+    args = set_args_defaults()
+    args = ptb_words_lstm(args)
+    args = args_to_dot(args)
     corpus, train_data, val_data, test_data = run_loader(args)
     criterion, modl, optimizer, params = run_model_builder(corpus, args)
     best_val_loss = run_training(modl, corpus, train_data, args, params, val_data, eval_batch_size, criterion)
