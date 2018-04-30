@@ -203,7 +203,16 @@ def run_model_builder(corpus, args):
     return criterion, modl, optimizer, params
 
 
-def evaluate(args, modl, criterion, corpus, data_source, batch_size=10):
+def evaluate(modl, criterion, corpus, data_source, args, batch_size = 10):
+    '''
+    :param modl:
+    :param criterion:
+    :param corpus:
+    :param data_source:
+    :param args:
+    :param batch_size:
+    :return: total_loss[0] / len(data_source)
+    '''
     # Turn on evaluation mode which disables dropout.
     modl.eval()
     if args.model == 'QRNN':
@@ -300,7 +309,7 @@ def run_training(modl, corpus, train_data, args, params, val_data, eval_batch_si
                     tmp[prm] = prm.data.clone()
                     prm.data = optimizer.state[prm]['ax'].clone()
 
-                val_loss2 = evaluate(modl, criterion, corpus, val_data)
+                val_loss2 = evaluate(modl, criterion, corpus, val_data, args)
                 print('-' * 89)
                 print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                     'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
@@ -316,7 +325,7 @@ def run_training(modl, corpus, train_data, args, params, val_data, eval_batch_si
                     prm.data = tmp[prm].clone()
 
             else:
-                val_loss = evaluate(args, modl, criterion, corpus, val_data, eval_batch_size)
+                val_loss = evaluate(modl, criterion, corpus, val_data, args, eval_batch_size)
                 print('-' * 89)
                 print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                     'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
@@ -352,7 +361,7 @@ def run_on_test(args, test_data, test_batch_size, corpus):
     modl, criterion, optimizer = model_load(args.save)
 
     # Run on test data.
-    test_loss = evaluate(modl, criterion, corpus, test_data, test_batch_size)
+    test_loss = evaluate(modl, criterion, corpus, test_data, args, test_batch_size)
     print('=' * 89)
     print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
         test_loss, math.exp(test_loss), test_loss / math.log(2)))
