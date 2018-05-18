@@ -4,6 +4,7 @@ import math
 import os
 import hashlib
 import numpy as np
+import pickle
 from splitcross import SplitCrossEntropyLoss
 import torch
 
@@ -25,6 +26,10 @@ randomhash = ''.join(str(time.time()).split('.'))
 
 eval_batch_size = 10
 test_batch_size = 1
+
+def save_obj(obj, name ):
+    with open('data_tests/'+ name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 def set_args_defaults():
     '''
@@ -293,6 +298,7 @@ def run_training(modl, corpus, train_data, args, params, val_data, eval_batch_si
 
     # At any point you can hit Ctrl + C to break out of training early.
     try:
+        epoch_losses = {}
         optimizer = None
         # Ensure the optimizer is optimizing params, which includes both the model's weights as well as the criterion's weight (i.e. Adaptive Softmax)
         if args.optimizer == 'sgd':
@@ -315,7 +321,7 @@ def run_training(modl, corpus, train_data, args, params, val_data, eval_batch_si
                     'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
                   epoch, (time.time() - epoch_start_time), val_loss, math.exp(val_loss), val_loss / math.log(2)))
                 print('-' * 89)
-
+                epoch_losses[epoch] = [val_loss2]
                 if val_loss2 < stored_loss:
                     model_save(args.save, modl, criterion, optimizer)
                     print('Saving Averaged!')
@@ -331,7 +337,7 @@ def run_training(modl, corpus, train_data, args, params, val_data, eval_batch_si
                     'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
                   epoch, (time.time() - epoch_start_time), val_loss, math.exp(val_loss), val_loss / math.log(2)))
                 print('-' * 89)
-
+                epoch_losses[epoch] = [val_loss]
                 if val_loss < stored_loss:
                     model_save(args.save, modl, criterion, optimizer)
                     print('Saving model (new best validation)')
@@ -353,7 +359,7 @@ def run_training(modl, corpus, train_data, args, params, val_data, eval_batch_si
         print('-' * 89)
         print('Exiting from training early')
 
-    return best_val_loss
+    return best_val_loss, epoch_losses
 
 def run_on_test(args, test_data, test_batch_size, corpus):
 
@@ -367,16 +373,58 @@ def run_on_test(args, test_data, test_batch_size, corpus):
         test_loss, math.exp(test_loss), test_loss / math.log(2)))
     print('=' * 89)
 
+
+def dropout_sensitivity():
+    print('dropout_sensitivity')
+    args = set_args_defaults()
+    # override relevant keys
+    args['batch_size'] = 20
+    args['data'] = 'data/penn'
+    args['seed'] = 141
+    args['epochs'] = 12
+    args['save'] = 'PTB.pt'
+    for drop_param in ['dropout', 'dropouth', 'dropouti', 'dropoute', 'wdrop']:
+        args['dropout'] = 0
+        args['dropouth'] = 0
+        args['dropouti'] = 0
+        args['dropoute'] = 0
+        args['wdrop'] = 0
+        for i in range(1, 10):
+            drop_val = i / 10
+            if drop_param == 'dropout':
+                args['dropout'] = drop_val
+            elif drop_param == 'dropouth':
+                args['dropouth'] = drop_val
+            elif drop_param == 'dropouti':
+                args['dropouti'] = drop_val
+            elif drop_param == 'dropoute':
+                args['dropoute'] = drop_val
+            elif drop_param == 'wdrop':
+                args['wdrop'] = drop_val
+            run_id = drop_param+'_'+str(i)
+            print(f'run_id: {run_id}')
+            args = args_to_dot(args)
+            corpus, train_data, val_data, test_data = run_loader(args)
+            criterion, modl, optimizer, params = run_model_builder(corpus, args)
+            best_val_loss, epoch_losses = run_training(modl, corpus, train_data, args, params, val_data, eval_batch_size,
+                                                       criterion)
+            print(f'best_val_loss: {best_val_loss}')
+            save_obj(epoch_losses, f'penn_drop_{run_id}')
+
 def workflow():
-    print('workflow')
     args = set_args_defaults()
     args = ptb_words_lstm(args)
     args = args_to_dot(args)
     corpus, train_data, val_data, test_data = run_loader(args)
     criterion, modl, optimizer, params = run_model_builder(corpus, args)
-    best_val_loss = run_training(modl, corpus, train_data, args, params, val_data, eval_batch_size, criterion)
+    best_val_loss, epoch_losses = run_training(modl, corpus, train_data, args, params, val_data, eval_batch_size,
+                                               criterion)
     print(f'best_val_loss: {best_val_loss}')
+    save_obj(epoch_losses, 'penn_test')
     run_on_test(args, test_data, test_batch_size, corpus)
 
+
+
+
 if __name__ == "__main__":
-    workflow()
+    dropout_sensitivity()
